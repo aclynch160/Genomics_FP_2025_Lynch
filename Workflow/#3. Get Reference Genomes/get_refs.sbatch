@@ -5,8 +5,7 @@
 #SBATCH -J job-D_refs
 #SBATCH -o Refs.out
 #SBATCH -e Refs.err
-#SBATCH --mail-user=aclynch@umass.edu
-#SBATCH --mail-type=END,FAIL
+
 
 set -euo pipefail
 
