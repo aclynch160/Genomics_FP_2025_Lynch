@@ -5,8 +5,6 @@
 #SBATCH -J Wget_files
 #SBATCH -o wget.out
 #SBATCH -e wget.err
-#SBATCH --mail-user=aclynch@umass.edu
-#SBATCH --mail-type=END,FAIL
 
 module load uri/main all/SRA-Toolkit/3.0.3-gompi-2022a
 
