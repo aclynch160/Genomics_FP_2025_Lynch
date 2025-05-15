@@ -1,0 +1,1 @@
+This step does QC trimming and FastQC in one step, using the basic trimgalore settings. This job may take 4+ hours at existing settings with paired-end Eukaryotic genomes; as such, I recommend submitting multiple jobs, instead of designing a complex script. 

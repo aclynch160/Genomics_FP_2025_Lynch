@@ -1,0 +1,153 @@
+#!/bin/bash
+#SBATCH -c 8
+#SBATCH --mem=64G
+#SBATCH -t 48:00:00
+#SBATCH -J star_align_seq_all
+#SBATCH -o STAR_align_sequential_all.out
+#SBATCH -e STAR_align_sequential_all.err
+
+set -euo pipefail
+module load star/2.7.11a
+
+FASTQ_DIR="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/Trimmed"
+OUT_BASE="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/STAR_Aligned"
+
+# === PIG ===
+INDEX="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/REFERENCE_GENOMES/star_index/pig"
+echo " Unzipping Pig_1 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Pig_1_val_1.fq.gz > ${FASTQ_DIR}/Pig_1_val_1.fq
+gunzip -c ${FASTQ_DIR}/Pig_1_val_2.fq.gz > ${FASTQ_DIR}/Pig_1_val_2.fq
+
+mkdir -p "${OUT_BASE}/pig/Pig_1"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Pig_1_val_1.fq ${FASTQ_DIR}/Pig_1_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/pig/Pig_1/Pig_1_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Pig_1 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Pig_1_val_1.fq
+gzip -f ${FASTQ_DIR}/Pig_1_val_2.fq
+
+echo " Done with Pig_1 (pig)"
+echo " Unzipping Pig_2 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Pig_2_val_1.fq.gz > ${FASTQ_DIR}/Pig_2_val_1.fq
+gunzip -c ${FASTQ_DIR}/Pig_2_val_2.fq.gz > ${FASTQ_DIR}/Pig_2_val_2.fq
+
+mkdir -p "${OUT_BASE}/pig/Pig_2"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Pig_2_val_1.fq ${FASTQ_DIR}/Pig_2_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/pig/Pig_2/Pig_2_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Pig_2 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Pig_2_val_1.fq
+gzip -f ${FASTQ_DIR}/Pig_2_val_2.fq
+
+echo " Done with Pig_2 (pig)"
+
+# === GOAT ===
+INDEX="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/REFERENCE_GENOMES/star_index/goat"
+echo " Unzipping Goat_1 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Goat_1_val_1.fq.gz > ${FASTQ_DIR}/Goat_1_val_1.fq
+gunzip -c ${FASTQ_DIR}/Goat_1_val_2.fq.gz > ${FASTQ_DIR}/Goat_1_val_2.fq
+
+mkdir -p "${OUT_BASE}/goat/Goat_1"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Goat_1_val_1.fq ${FASTQ_DIR}/Goat_1_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/goat/Goat_1/Goat_1_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Goat_1 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Goat_1_val_1.fq
+gzip -f ${FASTQ_DIR}/Goat_1_val_2.fq
+
+echo " Done with Goat_1 (goat)"
+echo " Unzipping Goat_2 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Goat_2_val_1.fq.gz > ${FASTQ_DIR}/Goat_2_val_1.fq
+gunzip -c ${FASTQ_DIR}/Goat_2_val_2.fq.gz > ${FASTQ_DIR}/Goat_2_val_2.fq
+
+mkdir -p "${OUT_BASE}/goat/Goat_2"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Goat_2_val_1.fq ${FASTQ_DIR}/Goat_2_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/goat/Goat_2/Goat_2_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Goat_2 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Goat_2_val_1.fq
+gzip -f ${FASTQ_DIR}/Goat_2_val_2.fq
+
+echo " Done with Goat_2 (goat)"
+
+# === COW ===
+INDEX="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/REFERENCE_GENOMES/star_index/cow"
+echo " Unzipping Cow_1 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Cow_1_val_1.fq.gz > ${FASTQ_DIR}/Cow_1_val_1.fq
+gunzip -c ${FASTQ_DIR}/Cow_1_val_2.fq.gz > ${FASTQ_DIR}/Cow_1_val_2.fq
+
+mkdir -p "${OUT_BASE}/cow/Cow_1"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Cow_1_val_1.fq ${FASTQ_DIR}/Cow_1_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/cow/Cow_1/Cow_1_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Cow_1 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Cow_1_val_1.fq
+gzip -f ${FASTQ_DIR}/Cow_1_val_2.fq
+
+echo " Done with Cow_1 (cow)"
+echo " Unzipping Cow_2 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Cow_2_val_1.fq.gz > ${FASTQ_DIR}/Cow_2_val_1.fq
+gunzip -c ${FASTQ_DIR}/Cow_2_val_2.fq.gz > ${FASTQ_DIR}/Cow_2_val_2.fq
+
+mkdir -p "${OUT_BASE}/cow/Cow_2"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Cow_2_val_1.fq ${FASTQ_DIR}/Cow_2_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/cow/Cow_2/Cow_2_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Cow_2 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Cow_2_val_1.fq
+gzip -f ${FASTQ_DIR}/Cow_2_val_2.fq
+
+echo " Done with Cow_2 (cow)"
+
+# === CHICKEN ===
+INDEX="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/REFERENCE_GENOMES/star_index/chicken"
+echo " Unzipping Chicken_1 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Chicken_1_val_1.fq.gz > ${FASTQ_DIR}/Chicken_1_val_1.fq
+gunzip -c ${FASTQ_DIR}/Chicken_1_val_2.fq.gz > ${FASTQ_DIR}/Chicken_1_val_2.fq
+
+mkdir -p "${OUT_BASE}/chicken/Chicken_1"
+STAR --runThreadN 8 \
+     --genomeDir "$INDEX" \
+     --readFilesIn ${FASTQ_DIR}/Chicken_1_val_1.fq ${FASTQ_DIR}/Chicken_1_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/chicken/Chicken_1/Chicken_1_" \
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Recompressing Chicken_1 FASTQ files..."
+gzip -f ${FASTQ_DIR}/Chicken_1_val_1.fq
+gzip -f ${FASTQ_DIR}/Chicken_1_val_2.fq
+
+echo " Done with Chicken_1 (chicken)"
+
+echo " All alignments complete."

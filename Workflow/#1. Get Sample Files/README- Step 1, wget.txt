@@ -1,0 +1,1 @@
+1. Substitute address for the file of your choosing. This wget script downloads two files, but it is possible to expand however much you need to. Similarly, it is fine to skip this step if you already have the necessary genomes. 

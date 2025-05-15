@@ -1,0 +1,186 @@
+---
+title: "Final Project"
+author: "Adam Lynch"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(DESeq2)
+library(tibble)
+library(ggplot2)
+library(biomaRt)
+library(tidyverse)
+
+```
+
+## R Markdown
+
+```{r}
+
+# === 1. Define species-specific Ensembl datasets ===
+species_marts <- list(
+  pig = "sscrofa_gene_ensembl",
+  cow = "btaurus_gene_ensembl",
+  goat = "chircus_gene_ensembl",
+  chicken = "ggallus_gene_ensembl"
+)
+
+# === 2. Annotate each species ===
+get_gene_map <- function(dataset) {
+  mart <- useEnsembl(biomart = "ensembl", dataset = dataset)
+  getBM(attributes = c("ensembl_gene_id", "external_gene_name"), mart = mart)
+}
+
+gene_maps <- lapply(species_marts, get_gene_map)
+
+# === 3. Read STAR raw counts and map to gene symbols ===
+read_star_counts <- function(file, species) {
+  sample_name <- gsub("_ReadsPerGene.out.tab", "", basename(file))
+  df <- read.delim(file, header = FALSE, stringsAsFactors = FALSE)
+  df <- df[-c(1:4), c(1, 2)]
+  colnames(df) <- c("ensembl_gene_id", sample_name)
+  
+  # 🔧 Strip version numbers (e.g., ENSGALG00000012345.1 -> ENSGALG00000012345)
+  df$ensembl_gene_id <- sub("\\..*$", "", df$ensembl_gene_id)
+
+  # Merge with gene symbol mapping
+  df <- merge(df, gene_maps[[species]], by = "ensembl_gene_id")
+  df <- df[df$external_gene_name != "", ]
+  df <- df[!duplicated(df$external_gene_name), ]
+  df$external_gene_name <- toupper(df$external_gene_name)
+  df <- df[, c("external_gene_name", sample_name)]
+  colnames(df)[1] <- "Gene"
+  return(df)
+}
+```
+
+
+```{r}
+# STAR files by species
+species_files <- list(
+  pig = list.files(pattern = "^Pig_.*ReadsPerGene.out.tab$"),
+  cow = list.files(pattern = "^Cow_.*ReadsPerGene.out.tab$"),
+  goat = list.files(pattern = "^Goat_.*ReadsPerGene.out.tab$"),
+  chicken = list.files(pattern = "^Chicken_.*ReadsPerGene.out.tab$")
+)
+
+star_data <- unlist(mapply(function(species, files) {
+  lapply(files, read_star_counts, species = species)
+}, names(species_files), species_files, SIMPLIFY = FALSE), recursive = FALSE)
+
+# === 4. Merge STAR counts ===
+merged_star <- reduce(star_data, full_join, by = "Gene")
+
+# === 5. Read Mouse and Human counts ===
+mouse <- read.csv("Mouse_Gene_count_table.csv", check.names = FALSE)
+colnames(mouse)[1] <- "Gene"
+mouse$Gene <- toupper(mouse$Gene)
+mouse <- mouse[!duplicated(mouse$Gene), ]
+
+human <- read.csv("Human_Gene_count_table.csv", check.names = FALSE)
+colnames(human)[1] <- "Gene"
+human$Gene <- toupper(human$Gene)
+human <- human[!duplicated(human$Gene), ]
+
+# === 6. Merge all species ===
+merged_all <- reduce(list(merged_star, mouse, human), full_join, by = "Gene")
+merged_all <- merged_all[!duplicated(merged_all$Gene), ]
+rownames(merged_all) <- merged_all$Gene
+merged_all$Gene <- NULL
+
+```
+
+
+```{r}
+
+# === 7. Write Tsv ===
+
+write.table(merged_all, file = "merged_gene_counts.tsv", sep = "\t", quote = FALSE)
+
+```
+
+
+
+```{r}
+# === 8. Deseq2 time ===
+# 1. Read and clean data
+raw <- read.delim("merged_gene_counts.tsv", row.names = 1, check.names = FALSE, stringsAsFactors = FALSE)
+counts <- as.data.frame(sapply(raw, function(x) as.numeric(gsub(",", "", trimws(x)))))
+rownames(counts) <- rownames(raw)
+
+# 2. Identify chicken vs non-chicken
+chicken_samples <- grep("^Chicken_", colnames(counts), value = TRUE)
+non_chicken_samples <- setdiff(colnames(counts), chicken_samples)
+
+# 3. Filter NA only in non-chicken
+counts <- counts[complete.cases(counts[, non_chicken_samples]), ]
+
+# 4. Split and round
+counts_no_chicken <- round(counts[, non_chicken_samples])
+counts_chicken <- round(counts[, chicken_samples])
+
+# Make sure column names are valid
+colnames(counts_no_chicken) <- make.names(colnames(counts_no_chicken), unique = TRUE)
+
+# Create colData in two steps
+col_data <- data.frame(condition = rep("X", ncol(counts_no_chicken)))
+rownames(col_data) <- colnames(counts_no_chicken)
+
+# Proceed to DESeq2
+dds <- DESeqDataSetFromMatrix(countData = round(counts_no_chicken), colData = col_data, design = ~1)
+```
+
+
+```{r}
+#Normalize
+dds <- estimateSizeFactors(dds)
+vst_mat <- assay(vst(dds, blind = TRUE))
+```
+
+
+#Return to chicken
+
+```{r}
+# === 1. Read and prepare chicken STAR counts ===
+#cannot get R to read ile correctly, but manually picking works here
+#Pick the chicken file
+#file <- file.choose()
+
+```
+
+
+```{r}
+
+df <- read.delim(file, header = FALSE)
+df <- df[-c(1:4), c(1, 2)]
+colnames(df) <- c("Gene", "Chicken_1")
+
+# Clean and prepare
+df <- df[df$Gene != "", ]
+df <- df[!duplicated(df$Gene), ]
+rownames(df) <- df$Gene
+df$Gene <- NULL
+
+# === 2. Normalize chicken counts with DESeq2 ===
+counts_chicken <- round(df)
+
+# Use raw counts as-is (already rounded earlier)
+log_chicken <- log2(counts_chicken + 1)
+
+# Merge with vst_mat (other species already normalized)
+common_genes <- intersect(rownames(vst_mat), rownames(log_chicken))
+vst_combined <- cbind(vst_mat[common_genes, ], log_chicken[common_genes, ])
+
+```
+
+```{r}
+# === 4. Visualize immune gene panel (optional) ===
+immune_genes <- c("CD8A", "IFNG", "BCL11B", "TCF7", "BACH2", "KLF2", "TBX21", "STAT1", "IL2", "TNF", "CXCL10", "GZMB", "FOXP3", "PDCD1", "DAPL1")
+genes_to_plot <- intersect(toupper(immune_genes), rownames(vst_combined))
+
+pheatmap(vst_combined[genes_to_plot, ], cluster_rows = TRUE, cluster_cols = TRUE,
+         main = "Immune Gene Expression Across Species")
+```

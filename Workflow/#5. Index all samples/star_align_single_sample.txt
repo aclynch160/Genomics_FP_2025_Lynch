@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH -c 8
+#SBATCH --mem=64G
+#SBATCH -t 16:00:00
+#SBATCH -J star_seq_pig1
+#SBATCH -o pig1_star_final.out
+#SBATCH -e pig1_star_final.err
+
+
+set -euo pipefail
+module load star/2.7.11a
+module load samtools/1.19.2
+
+FASTQ_DIR="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/Trimmed"
+OUT_BASE="/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/STAR_Aligned"
+echo " Decompressing Pig_1 FASTQ files..."
+gunzip -c ${FASTQ_DIR}/Pig_1_val_1.fq.gz > ${FASTQ_DIR}/Pig_1_val_1.fq
+gunzip -c ${FASTQ_DIR}/Pig_1_val_2.fq.gz > ${FASTQ_DIR}/Pig_1_val_2.fq
+
+mkdir -p "${OUT_BASE}/pig/Pig_1"
+echo " STAR alignment for Pig_1"
+STAR --runThreadN 8 \
+     --genomeDir "/work/pi_foodsci690_umass_edu/USERS/Lynch_A/PROJECTS/REFERENCE_GENOMES/star_index/pig" \
+     --readFilesIn ${FASTQ_DIR}/Pig_1_val_1.fq ${FASTQ_DIR}/Pig_1_val_2.fq \
+     --outFileNamePrefix "${OUT_BASE}/pig/Pig_1/Pig_1_" \
+     --outSAMtype SAM \
+     --outSAMattributes Standard \
+     --quantMode GeneCounts
+
+echo " Converting SAM to BAM for Pig_1"
+samtools view -@ 8 -bS "${OUT_BASE}/pig/Pig_1/Pig_1_Aligned.out.sam" | samtools sort -@ 8 -o "${OUT_BASE}/pig/Pig_1/Pig_1_Aligned.sorted.bam"
+
+echo " Cleaning up Pig_1 temporary files"
+rm -f "${OUT_BASE}/pig/Pig_1/Pig_1_Aligned.out.sam" "${FASTQ_DIR}/Pig_1_val_1.fq" "${FASTQ_DIR}/Pig_1_val_2.fq"

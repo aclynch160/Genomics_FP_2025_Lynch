@@ -1,0 +1,1 @@
+This particular reference script allows for easy, scalable downloads of any number of species. simply substitute the species you desire into the current list. 
