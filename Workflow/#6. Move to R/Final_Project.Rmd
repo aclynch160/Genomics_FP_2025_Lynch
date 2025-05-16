@@ -13,7 +13,7 @@ library(tibble)
 library(ggplot2)
 library(biomaRt)
 library(tidyverse)
-
+library(pheatmap)
 ```
 
 ## R Markdown
@@ -132,6 +132,11 @@ rownames(col_data) <- colnames(counts_no_chicken)
 # Proceed to DESeq2
 dds <- DESeqDataSetFromMatrix(countData = round(counts_no_chicken), colData = col_data, design = ~1)
 ```
+```{r}
+write.table(counts_no_chicken, file = "counts_no_chicken_final.tsv", sep = "\t", quote = FALSE, row.names = TRUE)
+
+
+```
 
 
 ```{r}
@@ -146,14 +151,13 @@ vst_mat <- assay(vst(dds, blind = TRUE))
 ```{r}
 # === 1. Read and prepare chicken STAR counts ===
 #cannot get R to read ile correctly, but manually picking works here
-#Pick the chicken file
-#file <- file.choose()
+#Pick the chicken file ("chicken reads per gene out")
+file <- file.choose()
 
 ```
 
 
 ```{r}
-
 df <- read.delim(file, header = FALSE)
 df <- df[-c(1:4), c(1, 2)]
 colnames(df) <- c("Gene", "Chicken_1")
@@ -178,9 +182,266 @@ vst_combined <- cbind(vst_mat[common_genes, ], log_chicken[common_genes, ])
 
 ```{r}
 # === 4. Visualize immune gene panel (optional) ===
-immune_genes <- c("CD8A", "IFNG", "BCL11B", "TCF7", "BACH2", "KLF2", "TBX21", "STAT1", "IL2", "TNF", "CXCL10", "GZMB", "FOXP3", "PDCD1", "DAPL1")
+immune_genes <- c("IFNG", "BCL11B", "TCF7", "BACH2", "KLF2", "TBX21", "STAT1", "TNF", "CXCL10", "GZMB", "FOXP3", "PDCD1", "DAPL1")
 genes_to_plot <- intersect(toupper(immune_genes), rownames(vst_combined))
 
-pheatmap(vst_combined[genes_to_plot, ], cluster_rows = TRUE, cluster_cols = TRUE,
+
+pheatmap(vst_combined[genes_to_plot, ], cluster_rows = TRUE, cluster_cols = F,
          main = "Immune Gene Expression Across Species")
+```
+```{r}
+mat <- vst_combined[genes_to_plot, ]
+
+# === 2. Create custom color breaks ===
+# Color: gray for 0, dark blue < 5, gradient above
+max_val <- max(mat, na.rm = TRUE)
+color_breaks <- c(0, 0.001, seq(0.01, 4.99, length.out = 20), seq(5, max_val, length.out = 80))
+custom_colors <- c("gray", colorRampPalette(c("darkblue", "lightblue", "white", "orange", "red"))(length(color_breaks) - 1))
+
+# === 3. Plot heatmap ===
+pheatmap(mat,
+         color = custom_colors,
+         breaks = color_breaks,
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         main = "Immune Gene Expression Across Species (Custom Colors)",
+         fontsize_row = 9,
+         fontsize_col = 10)
+
+```
+
+
+
+
+
+```{r}
+#rename columns
+colnames(vst_combined) <- c("Pig_1", "Pig_2", "Cow_1", "Cow_2", "Goat_1", "Goat_2", "Mouse_1", "Mouse_2", "Mouse_3", "Human_1", "Human_2", "Chicken_1")
+
+#write.table(vst_combined, file = "vst_normalized_all_species.tsv", sep = "\t", quote = FALSE, row.names = TRUE)
+
+```
+
+
+```{r}
+#new heatmap
+
+pheatmap(vst_combined[genes_to_plot, ], cluster_rows = TRUE, cluster_cols = F,
+         main = "Immune Gene Expression Across Species")
+
+```
+
+```{r}
+#PCA (includign chicken)
+
+vst_t <- t(vst_combined)
+pca <- prcomp(vst_t, scale. = TRUE)
+
+# Create PCA dataframe
+pca_df <- as.data.frame(pca$x)
+pca_df$Sample <- rownames(pca_df)
+
+# Optional: parse species from sample names
+pca_df$Species <- sub("_.*", "", pca_df$Sample)
+
+# Plot
+ggplot(pca_df, aes(x = PC1, y = PC2, label = Sample, color = Species)) +
+  geom_point(size = 4) +
+  geom_text(vjust = -1.2, size = 3) +
+  theme_minimal() +
+  labs(title = "PCA of Normalized Gene Expression",
+       x = paste0("PC1 (", round(100 * summary(pca)$importance[2, 1], 1), "% variance)"),
+       y = paste0("PC2 (", round(100 * summary(pca)$importance[2, 2], 1), "% variance)"))
+
+
+
+```
+
+```{r}
+#Chicken_free PCA (since it's even more of an outlier than anticipated)
+
+# 1. Exclude chicken columns
+vst_no_chicken <- vst_combined[, !grepl("^Chicken", colnames(vst_combined))]
+
+# 2. Transpose matrix for PCA
+vst_t <- t(vst_no_chicken)
+
+# Remove constant genes
+vst_t_filtered <- vst_t[, apply(vst_t, 2, var) != 0]
+
+# Run PCA
+pca <- prcomp(vst_t_filtered, scale. = TRUE)
+
+# 4. Create PCA dataframe
+pca_df <- as.data.frame(pca$x)
+pca_df$Sample <- rownames(pca_df)
+pca_df$Species <- sub("_.*", "", pca_df$Sample)
+
+# 5. Plot PCA
+library(ggplot2)
+ggplot(pca_df, aes(x = PC1, y = PC2, label = Sample, color = Species)) +
+  geom_point(size = 4) +
+  geom_text(vjust = -1.2, size = 3) +
+  theme_minimal() +
+  labs(title = "PCA of Gene Expression (No Chicken)",
+       x = paste0("PC1 (", round(100 * summary(pca)$importance[2, 1], 1), "% variance)"),
+       y = paste0("PC2 (", round(100 * summary(pca)$importance[2, 2], 1), "% variance)"))
+
+
+```
+
+##Heatmap using Zscore
+
+```{r}
+# === 1. Define matrix to plot ===
+# Ensure genes_to_plot is defined
+mat <- vst_combined[genes_to_plot, ]
+
+# === 2. Z-score normalize by gene ===
+mat_z <- t(scale(t(mat)))  # center & scale rows (genes)
+
+# === 3. Define custom color breaks and palette ===
+max_val <- max(mat_z, na.rm = TRUE)
+min_val <- min(mat_z, na.rm = TRUE)
+
+# Breaks centered at 0, stretch evenly across range
+color_breaks <- seq(min_val, max_val, length.out = 100)
+custom_colors <- colorRampPalette(c("darkblue", "lightblue", "white","orange", "red"))(length(color_breaks))
+
+```
+
+
+```{r}
+# === 4. Plot heatmap ===
+pheatmap(mat_z,
+         breaks = color_breaks,
+         cluster_rows = TRUE,
+         cluster_cols = F,
+         main = "Z-Scored Immune Gene Expression",
+         fontsize_row = 9,
+         fontsize_col = 10,
+         gaps_col = 11)
+
+```
+
+```{r}
+#Just Human vs Mouse
+#re-reading in the df because I manually changed column names
+
+# Read table
+counts_HM <- read.delim("counts_no_chicken_final.tsv", row.names = 1, check.names = FALSE)
+
+# Subset to just mouse and human
+mouse_human <- counts_HM[, grepl("^Mouse|^Human", colnames(counts_HM))]
+
+```
+
+
+```{r}
+#metadata
+
+sample_info2 <- data.frame(
+  sample = colnames(mouse_human),
+  species = ifelse(grepl("^Mouse", colnames(mouse_human)), "Mouse", "Human")
+)
+rownames(sample_info2) <- sample_info2$sample
+
+```
+
+
+```{r}
+dds2 <- DESeqDataSetFromMatrix(countData = round(mouse_human),
+                              colData = sample_info2,
+                              design = ~ species)
+
+dds2 <- DESeq(dds2)
+res2 <- results(dds2, contrast = c("species", "Human", "Mouse"))  # log2(Human / Mouse)
+
+```
+##Memory Associated Genes
+
+```{r}
+res_df <- as.data.frame(res2)
+res_df$Gene <- toupper(rownames(res_df))  # standardize for matching
+res_df$highlight <- ifelse(res_df$Gene %in% highlight_genes, "yes", "no")
+
+ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = highlight), alpha = 0.5) +
+  scale_color_manual(values = c("no" = "gray70", "yes" = "red")) +
+  geom_text(data = subset(res_df, highlight == "yes" & !is.na(padj) & padj < 0.05),
+            aes(label = Gene), vjust = 1.3, size = 3, color = "red") +
+  geom_vline(xintercept = c(-1, 1), col = "black", linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), col = "black", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Human vs Mouse: Highlighted Genes",
+       x = "log2 Fold Change (Human / Mouse)",
+       y = "-log10 adjusted p-value")
+```
+
+```{r}
+
+# Match by rownames (gene symbols)
+available_genes <- intersect(highlight_genes, rownames(mouse_human))
+heatmap_mat2 <- mouse_human[available_genes, ]
+
+heatmap_z2 <- t(scale(t(heatmap_mat2)))
+
+pheatmap(heatmap_z2,
+         scale = "none",  # Already z-scored
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         fontsize_row = 10,
+         fontsize_col = 10,
+         main = "Highlighted Immune Regulators (Z-Scored)")
+
+
+```
+
+
+##Effector Associated Genes
+
+```{r}
+
+highlight_effector <- toupper(c(
+  "Tnf", "Batf", "Wnt10b", "Fasl", "Cd38", "Ikzf2", "Cx3cr1", "Myb", "Prdm1",
+  "Gzmk", "Klrg1", "Eomes", "Irf8", "Gzmm", "Prf1", "Gzma", "Havcr2", "Id2",
+  "Entpd1", "Tnfrsf9", "Gzmb", "Cd244a", "Cd160", "Pdcd1", "Il10", "Ifng", "Gzmc", "Dapl1"
+))
+
+# Match by rownames (gene symbols)
+effector_genes <- intersect(highlight_effector, rownames(mouse_human))
+heatmap_mat3 <- mouse_human[effector_genes, ]
+
+heatmap_3 <- t(scale(t(heatmap_mat3)))
+
+pheatmap(heatmap_3,
+         scale = "none",  # Already z-scored
+         cluster_rows = TRUE,
+         cluster_cols = TRUE,
+         fontsize_row = 10,
+         fontsize_col = 10,
+         main = "Highlighted Immune Regulators (Z-Scored)")
+
+```
+
+
+
+```{r}
+
+res_df2 <- as.data.frame(res2)
+res_df2$Gene <- toupper(rownames(res_df2))  # standardize for matching
+res_df2$highlight <- ifelse(res_df2$Gene %in% highlight_effector, "yes", "no")
+
+ggplot(res_df2, aes(x = log2FoldChange, y = -log10(padj))) +
+  geom_point(aes(color = highlight), alpha = 0.5) +
+  scale_color_manual(values = c("no" = "gray70", "yes" = "red")) +
+  geom_text(data = subset(res_df2, highlight == "yes" & !is.na(padj) & padj < 0.05),
+            aes(label = Gene), vjust = 1.3, size = 3, color = "red") +
+  geom_vline(xintercept = c(-1, 1), col = "black", linetype = "dashed") +
+  geom_hline(yintercept = -log10(0.05), col = "black", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Human vs Mouse: Highlighted Genes",
+       x = "log2 Fold Change (Human / Mouse)",
+       y = "-log10 adjusted p-value")
+
 ```
